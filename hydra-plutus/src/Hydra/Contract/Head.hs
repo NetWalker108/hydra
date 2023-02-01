@@ -56,6 +56,8 @@ import Plutus.V2.Ledger.Api (
  )
 
 -- REVIEW: Functions not re-exported "as V2", but using the same data types.
+
+import Data.Maybe (maybeToList)
 import Plutus.V2.Ledger.Contexts (findDatum, findOwnInput, getContinuingOutputs)
 import PlutusTx (CompiledCode)
 import qualified PlutusTx
@@ -280,7 +282,7 @@ checkClose ctx parties initialUtxoHash sig cperiod headPolicyId =
   outValue =
     maybe mempty (txOutValue . txInInfoResolved) $ findOwnInput ctx
 
-  (closedSnapshotNumber, closedUtxoHash, parties', closedContestationDeadline, headId') =
+  (closedSnapshotNumber, closedUtxoHash, parties', closedContestationDeadline, headId', contesters') =
     -- XXX: fromBuiltinData is super big (and also expensive?)
     case fromBuiltinData @DatumType $ getDatum (continuingDatum ctx) of
       Just
@@ -290,7 +292,8 @@ checkClose ctx parties initialUtxoHash sig cperiod headPolicyId =
           , parties = p
           , contestationDeadline
           , headId
-          } -> (snapshotNumber, utxoHash, p, contestationDeadline, headId)
+          , contesters
+          } -> (snapshotNumber, utxoHash, p, contestationDeadline, headId, contesters)
       _ -> traceError "wrong state in output datum"
 
   checkSnapshot
@@ -319,6 +322,7 @@ checkClose ctx parties initialUtxoHash sig cperiod headPolicyId =
     traceIfFalse "changed parameters" $
       headId' == headPolicyId
         && parties' == parties
+        && null contesters'
 
   ScriptContext{scriptContextTxInfo = txInfo} = ctx
 {-# INLINEABLE checkClose #-}
@@ -329,16 +333,15 @@ checkClose ctx parties initialUtxoHash sig cperiod headPolicyId =
 --
 --   * The contest snapshot is correctly signed.
 --
---   * No other parameters have changed.
---
---   * The transaction is performed before the deadline.
---   * Party can contest only once.
---
---   * The resulting closed state is consistent with the contested snapshot.
---
 --   * The transaction is performed (i.e. signed) by one of the head participants
 --
+--   * Party can contest only once.
+--
+--   * The transaction is performed before the deadline.
+--
 --   * State token (ST) is present in the output
+--
+--   * No other parameters have changed.
 checkContest ::
   ScriptContext ->
   POSIXTime ->
@@ -355,11 +358,11 @@ checkContest ctx contestationDeadline parties closedSnapshotNumber sig contester
   mustNotMintOrBurn txInfo
     && mustBeNewer
     && mustBeMultiSigned
-    && mustNotChangeParameters
     && mustBeSignedByParticipant ctx headId
     && checkSignedParticipantContestOnlyOnce
     && mustBeWithinContestationPeriod
     && hasST headId outValue
+    && mustNotChangeParameters
  where
   outValue =
     maybe mempty (txOutValue . txInInfoResolved) $ findOwnInput ctx
@@ -382,8 +385,9 @@ checkContest ctx contestationDeadline parties closedSnapshotNumber sig contester
       parties' == parties
         && contestationDeadline' == contestationDeadline
         && headId' == headId
+        && contesters' == (contester <> contesters)
 
-  (contestSnapshotNumber, contestUtxoHash, parties', contestationDeadline', headId') =
+  (contestSnapshotNumber, contestUtxoHash, parties', contestationDeadline', headId', contesters') =
     -- XXX: fromBuiltinData is super big (and also expensive?)
     case fromBuiltinData @DatumType $ getDatum (continuingDatum ctx) of
       Just
@@ -393,10 +397,16 @@ checkContest ctx contestationDeadline parties closedSnapshotNumber sig contester
           , parties = p
           , contestationDeadline = dl
           , headId = hid
-          } -> (snapshotNumber, utxoHash, p, dl, hid)
+          , contesters = cs
+          } -> (snapshotNumber, utxoHash, p, dl, hid, cs)
       _ -> traceError "wrong state in output datum"
 
   ScriptContext{scriptContextTxInfo = txInfo} = ctx
+
+  contester = maybeToList $
+    case txInfoSignatories txInfo of
+      [signer] -> Just signer
+      _ -> Nothing
 
   checkSignedParticipantContestOnlyOnce =
     case txInfoSignatories txInfo of
