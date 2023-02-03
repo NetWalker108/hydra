@@ -35,7 +35,7 @@ import Hydra.Data.ContestationPeriod (posixFromUTCTime)
 import qualified Hydra.Data.ContestationPeriod as OnChain
 import qualified Hydra.Data.Party as OnChain
 import Hydra.Ledger (hashUTxO)
-import Hydra.Ledger.Cardano (genOneUTxOFor, genVerificationKey)
+import Hydra.Ledger.Cardano (genOneUTxOFor, genValue, genVerificationKey)
 import Hydra.Ledger.Cardano.Evaluate (genValidityBoundsFromContestationPeriod)
 import Hydra.Party (Party, deriveParty, partyToChain)
 import Hydra.Snapshot (Snapshot (..), SnapshotNumber)
@@ -220,6 +220,8 @@ data CloseMutation
   | MutateHeadId
   | -- | Minting or burning of the tokens should not be possible in v_head apart from 'checkAbort' or 'checkFanout'
     MutateTokenMintingOrBurning
+  | -- | See spec: 5.5. rule 6 -> value is preserved
+    MutateValueInOutput
   deriving (Generic, Show, Enum, Bounded)
 
 genCloseMutation :: (Tx, UTxO) -> Gen SomeMutation
@@ -278,6 +280,9 @@ genCloseMutation (tx, _utxo) =
             ]
     , SomeMutation (Just "minting or burning is forbidden") MutateTokenMintingOrBurning
         <$> (changeMintedTokens tx =<< genMintedOrBurnedValue)
+    , SomeMutation (Just "head value is not preserved") MutateValueInOutput <$> do
+        newValue <- genValue
+        pure $ ChangeOutput 0 (headTxOut{txOutValue = newValue})
     ]
  where
   genOversizedTransactionValidity = do
