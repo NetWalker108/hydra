@@ -30,7 +30,7 @@ import Hydra.Crypto (HydraKey, MultiSignature, aggregate, sign, toPlutusSignatur
 import Hydra.Data.ContestationPeriod (posixFromUTCTime)
 import qualified Hydra.Data.Party as OnChain
 import Hydra.Ledger (hashUTxO)
-import Hydra.Ledger.Cardano (genOneUTxOFor, genVerificationKey)
+import Hydra.Ledger.Cardano (genOneUTxOFor, genValue, genVerificationKey)
 import Hydra.Ledger.Cardano.Evaluate (slotNoToUTCTime)
 import Hydra.Party (Party, deriveParty, partyToChain)
 import Hydra.Snapshot (Snapshot (..), SnapshotNumber)
@@ -171,6 +171,8 @@ data ContestMutation
     MutateHeadId
   | -- | Minting or burning of the tokens should not be possible in v_head apart from 'checkAbort' or 'checkFanout'
     MutateTokenMintingOrBurning
+  | -- | See spec: 5.5. rule 6 -> value is preserved
+    MutateValueInOutput
   deriving (Generic, Show, Enum, Bounded)
 
 genContestMutation :: (Tx, UTxO) -> Gen SomeMutation
@@ -227,6 +229,9 @@ genContestMutation
               ]
       , SomeMutation (Just "minting or burning is forbidden") MutateTokenMintingOrBurning
           <$> (changeMintedTokens tx =<< genMintedOrBurnedValue)
+      , SomeMutation (Just "head value is not preserved") MutateValueInOutput <$> do
+          newValue <- genValue
+          pure $ ChangeOutput 0 (headTxOut{txOutValue = newValue})
       ]
    where
     headTxOut = fromJust $ txOuts' tx !!? 0

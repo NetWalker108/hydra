@@ -21,7 +21,7 @@ import PlutusTx.Prelude
 import Hydra.Contract.Commit (Commit (..))
 import qualified Hydra.Contract.Commit as Commit
 import Hydra.Contract.HeadState (Input (..), Signature, SnapshotNumber, State (..))
-import Hydra.Contract.Util (hasST, mustNotMintOrBurn)
+import Hydra.Contract.Util (hasST, headOutputValue, mustNotMintOrBurn, mustPreserveValue)
 import Hydra.Data.ContestationPeriod (ContestationPeriod, addContestationPeriod, milliseconds)
 import Hydra.Data.Party (Party (vkey))
 import Plutus.Extras (ValidatorType, scriptValidatorHash, wrapValidator)
@@ -260,16 +260,9 @@ checkClose ctx parties initialUtxoHash sig cperiod headPolicyId =
     && mustBeSignedByParticipant ctx headPolicyId
     && hasST headPolicyId outValue
     && mustNotChangeParameters
-    && mustPreserveValue
+    && mustPreserveValue outValue headOutValue
  where
-  mustPreserveValue =
-    traceIfFalse "head value is not preserved" $
-      outValue == headOutputValue
-  headOutputValue =
-    case txInfoOutputs txInfo of
-      [headOutput, _] -> txOutValue headOutput
-      _ -> traceError "does not have exactly two outputs"
-
+  headOutValue = headOutputValue $ txInfoOutputs txInfo
   hasBoundedValidity =
     traceIfFalse "hasBoundedValidity check failed" $
       tMax - tMin <= cp
@@ -351,7 +344,9 @@ checkContest ctx contestationDeadline parties closedSnapshotNumber sig headId =
     && mustBeSignedByParticipant ctx headId
     && mustBeWithinContestationPeriod
     && hasST headId outValue
+    && mustPreserveValue outValue headOutValue
  where
+  headOutValue = headOutputValue $ txInfoOutputs txInfo
   outValue =
     maybe mempty (txOutValue . txInInfoResolved) $ findOwnInput ctx
 
