@@ -54,9 +54,6 @@ import Plutus.V2.Ledger.Api (
   adaToken,
   mkValidatorScript,
  )
-
--- REVIEW: Functions not re-exported "as V2", but using the same data types.
-
 import Plutus.V2.Ledger.Contexts (findDatum, findOwnInput, getContinuingOutputs)
 import PlutusTx (CompiledCode)
 import qualified PlutusTx
