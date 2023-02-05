@@ -110,7 +110,7 @@ UI </center></small>
 After kicking off planning in a
 [workshop](http://ncoding.at:3000/head-protocol/monthly/2022-11#cardano-summit--workshop)
 and reflecting on [what Hydra achieved in
-2023](https://cardanofoundation.org/en/news/hydra-head-protocol-an-open-source-solution-for-scalability/),
+2022](https://cardanofoundation.org/en/news/hydra-head-protocol-an-open-source-solution-for-scalability/),
 the team has progressed in fleshing out relevant themes and objectives for this
 year to position Hydra as a sustainable open-source project in the age of
 Voltaire:
